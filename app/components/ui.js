@@ -152,6 +152,14 @@ function GoalIcon() {
 				stroke="currentColor"
 				strokeWidth="1.8"
 			/>
+			<path
+				d="m12 12 6.5-6.5"
+				fill="none"
+				stroke="currentColor"
+				strokeLinecap="round"
+				strokeWidth="1.8"
+			/>
+			<circle cx="12" cy="12" r="1.8" fill="currentColor" />
 		</svg>
 	);
 }
