@@ -3,8 +3,8 @@ import { formatGoalDate } from '@/app/lib/goals';
 
 // streak day icon changes bassed on weather the day is upcoming, complete, or missed
 export const streakDays = [
-	{ day: 1, status: 'upcoming' },
-	{ day: 2, status: 'upcoming' },
+	{ day: 1, status: 'complete' },
+	{ day: 2, status: 'missed' },
 	{ day: 3, status: 'upcoming' },
 	{ day: 4, status: 'upcoming' },
 	{ day: 5, status: 'upcoming' },

@@ -1,4 +1,4 @@
-import next from 'next';
+// import next from 'next';
 
 // temporary local storage key
 export const GOALS_STORAGE_KEY = 'fitness-goals';

@@ -8,7 +8,6 @@ import {
 	BottomNav,
 	CheckInHeader,
 	DeleteGoalModal,
-	GoaCard,
 	GoalCard,
 	MobileScreen,
 	StreakRow,
@@ -19,7 +18,6 @@ import {
 	getGoalById,
 	readGoals,
 	upsertGoal,
-	x,
 } from '@/app/lib/goals';
 
 function GoalForm({
@@ -190,7 +188,7 @@ export function GoalCreatePageClient() {
 }
 
 export function GoalEditPageClient({ goalId }) {
-	const router = useRouter;
+	const router = useRouter();
 	const [formState, setFormState] = useState({
 		title: '',
 		frequency: '',
@@ -225,7 +223,7 @@ export function GoalEditPageClient({ goalId }) {
 			id: goalId,
 			title: formState.title.trim(),
 			frequency: formState.frequency.trim(),
-			endDate: formstate.endDate,
+			endDate: formState.endDate,
 		});
 
 		router.push('/goals');
