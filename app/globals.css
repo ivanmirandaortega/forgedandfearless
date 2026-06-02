@@ -479,6 +479,17 @@ button {
 	line-height: 1.35;
 }
 
+.goal-form-error {
+	margin: 0;
+	border: 1px solid #b42318;
+	border-radius: 16px;
+	padding: 14px 16px;
+	background: #fef3f2;
+	color: #b42318;
+	font-size: 13px;
+	line-height: 1.35;
+}
+
 .goal-field {
 	display: flex;
 	flex-direction: column;

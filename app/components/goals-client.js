@@ -14,10 +14,13 @@ import {
 } from '@/app/components/ui';
 import {
 	buildGoalId,
+	createGoal,
 	deleteGoal,
 	getGoalById,
-	readGoals,
+	fetchGoals,
 	upsertGoal,
+	fetchGoalById,
+	updateGoal,
 } from '@/app/lib/goals';
 
 function GoalForm({
@@ -28,6 +31,7 @@ function GoalForm({
 	title,
 	description,
 	missingGoal,
+	errorMessage,
 }) {
 	return (
 		<MobileScreen>
@@ -51,6 +55,9 @@ function GoalForm({
 				</section>
 			) : (
 				<form className="goal-form" onSubmit={onSubmit}>
+					{errorMessage ? (
+						<p className="goal-form-error">{errorMessage}</p>
+					) : null}
 					<label className="goal-field">
 						<span>Goal Title</span>
 						<input
@@ -104,19 +111,49 @@ export function GoalsPageClient() {
 	const router = useRouter();
 	const [goals, setGoals] = useState([]);
 	const [deleteCandidate, setDeleteCandidate] = useState(null);
+	const [errorMessage, setErrorMessage] = useState('');
 
 	useEffect(() => {
-		setGoals(readGoals());
+		let cancelled = false;
+
+		async function loadGoals() {
+			try {
+				const nextGoals = await fetchGoals();
+
+				if (!cancelled) {
+					setGoals(nextGoals);
+					setErrorMessage('');
+				}
+			} catch (error) {
+				if (!cancelled) {
+					setErrorMessage(error.message);
+				}
+			}
+		}
+
+		loadGoals();
+
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
-	const handleDelete = () => {
+	const handleDelete = async () => {
 		if (!deleteCandidate) {
 			return;
 		}
 
-		const nextGoals = deleteGoal(deleteCandidate.id);
-		setGoals(nextGoals);
-		setDeleteCandidate(null);
+		try {
+			await deleteGoal(deleteCandidate.id);
+			setGoals((current) =>
+				current.filter((goal) => goal.id !== deleteCandidate.id),
+			);
+			setDeleteCandidate(null);
+			setErrorMessage('');
+		} catch (error) {
+			setErrorMessage(error.message);
+			setDeleteCandidate(null);
+		}
 	};
 
 	return (
@@ -125,6 +162,9 @@ export function GoalsPageClient() {
 			<StreakRow />
 
 			<section className="goals-content">
+				{errorMessage ? (
+					<p className="goal-form-error">{errorMessage}</p>
+				) : null}
 				{goals.map((goal) => (
 					<GoalCard
 						key={goal.id}
@@ -155,13 +195,14 @@ export function GoalCreatePageClient() {
 		frequency: '',
 		endDate: '',
 	});
+	const [errorMessage, setErrorMessage] = useState('');
 
 	const handleChange = (event) => {
 		const { name, value } = event.target;
 		setFormState((current) => ({ ...current, [name]: value }));
 	};
 
-	const handleSubmit = (event) => {
+	const handleSubmit = async (event) => {
 		event.preventDefault();
 
 		const newGoal = {
@@ -171,8 +212,12 @@ export function GoalCreatePageClient() {
 			endDate: formState.endDate,
 		};
 
-		upsertGoal(newGoal);
-		router.push('/goals');
+		try {
+			await createGoal(newGoal);
+			router.push('/goals');
+		} catch (error) {
+			setErrorMessage(error.message);
+		}
 	};
 
 	return (
@@ -183,6 +228,7 @@ export function GoalCreatePageClient() {
 			submitLabel="Save Goal"
 			title="Set A Goal"
 			description="Create a new goal with a title, frequency, and end date."
+			errorMessage={errorMessage}
 		/>
 	);
 }
@@ -195,20 +241,43 @@ export function GoalEditPageClient({ goalId }) {
 		endDate: '',
 	});
 	const [missingGoal, setMissingGoal] = useState(false);
+	const [errorMessage, setErrorMessage] = useState('');
 
 	useEffect(() => {
-		const goal = getGoalById(goalId);
+		let cancelled = false;
 
-		if (!goal) {
-			setMissingGoal(true);
-			return;
+		async function loadGoal() {
+			try {
+				const goal = await fetchGoalById(goalId);
+
+				if (!goal) {
+					if (!cancelled) {
+						setMissingGoal(true);
+					}
+					return;
+				}
+
+				if (!cancelled) {
+					setFormState({
+						title: goal.title,
+						frequency: goal.frequency,
+						endDate: goal.endDate,
+					});
+					setMissingGoal(false);
+					setErrorMessage('');
+				}
+			} catch (error) {
+				if (!cancelled) {
+					setErrorMessage(error.message);
+				}
+			}
 		}
 
-		setFormState({
-			title: goal.title,
-			frequency: goal.frequency,
-			endDate: goal.endDate,
-		});
+		loadGoal();
+
+		return () => {
+			cancelled = true;
+		};
 	}, [goalId]);
 
 	const handleChange = (event) => {
@@ -216,17 +285,20 @@ export function GoalEditPageClient({ goalId }) {
 		setFormState((current) => ({ ...current, [name]: value }));
 	};
 
-	const handleSubmit = (event) => {
+	const handleSubmit = async (event) => {
 		event.preventDefault();
 
-		upsertGoal({
-			id: goalId,
-			title: formState.title.trim(),
-			frequency: formState.frequency.trim(),
-			endDate: formState.endDate,
-		});
-
-		router.push('/goals');
+		try {
+			await updateGoal(goalId, {
+				id: goalId,
+				title: formState.title.trim(),
+				frequency: formState.frequency.trim(),
+				endDate: formState.endDate,
+			});
+			router.push('/goals');
+		} catch (error) {
+			setErrorMessage(error.message);
+		}
 	};
 
 	return (
@@ -238,6 +310,7 @@ export function GoalEditPageClient({ goalId }) {
 			title="Edit Goal"
 			description="Adjust the goal title, target frequency, and end date."
 			missingGoal={missingGoal}
+			errorMessage={errorMessage}
 		/>
 	);
 }

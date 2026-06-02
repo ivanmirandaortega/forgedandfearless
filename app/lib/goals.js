@@ -1,17 +1,157 @@
-// import next from 'next';
+const GOALS_API_ROUTE = '/api/goals';
+const DEFAULT_GOAL_USER_ID = process.env.NEXT_PUBLIC_GOALS_USER_ID || 'user_1';
+const DEFAULT_GOAL_APP_ID =
+	process.env.NEXT_PUBLIC_GOALS_APP_ID || 'fitness-checkin-app';
 
-// temporary local storage key
-export const GOALS_STORAGE_KEY = 'fitness-goals';
+function deriveTargetDescription(title) {
+	const trimmedTitle = title.trim();
 
-// default goal to showcase a prior saved goal
-export const defaultGoals = [
-	{
-		id: 'chest-day',
-		title: 'Chest Day',
-		frequency: '3x per week',
-		endDate: '2026-12-31',
-	},
-];
+	if (!trimmedTitle) {
+		return '';
+	}
+
+	const matchedTarget = trimmedTitle.match(
+		/^(.*?)(?:\s+by\s+.+|\s+before\s+.+|\s+within\s+.+)$/i,
+	);
+
+	return (matchedTarget?.[1] ?? trimmedTitle).trim();
+}
+
+function buildGoalMetadata(goal) {
+	const metadata = {
+		...(goal.metadata ?? {}),
+	};
+
+	if (!metadata.targetDescription) {
+		metadata.targetDescription = deriveTargetDescription(goal.title ?? '');
+	}
+
+	return metadata;
+}
+
+function formatFrequencyValue(goal) {
+	if (typeof goal.frequency === 'string' && goal.frequency.trim()) {
+		return goal.frequency.trim();
+	}
+
+	if (goal.frequency && typeof goal.frequency === 'object') {
+		if (
+			goal.frequency.type === 'weekly_count' &&
+			goal.frequency.requiredCount != null
+		) {
+			return `${goal.frequency.requiredCount}x per week`;
+		}
+	}
+
+	if (goal.frequencyType === 'weekly_count' && goal.requiredCount != null) {
+		return `${goal.requiredCount}x per week`;
+	}
+
+	if (typeof goal.targetFrequency === 'string' && goal.targetFrequency()) {
+		return goal.targetFrequency.trim();
+	}
+
+	return '';
+}
+
+function parseFrequencyInput(value) {
+	const trimmedValue = value.trim();
+	const weeklyCountMatch = trimmedValue.match(
+		/^(\d+)\s*x?\s*(per\s+week|weekly)?$/i,
+	);
+
+	if (weeklyCountMatch) {
+		return {
+			frequency: {
+				type: 'weekly_count',
+				requiredCount: Number(weeklyCountMatch[1]),
+			},
+		};
+	}
+
+	return {
+		frequency: trimmedValue,
+	};
+}
+
+function toGoalPayload(goal) {
+	const frequencyFields = parseFrequencyInput(goal.frequency ?? '');
+
+	return {
+		id: goal.id,
+		userId: goal.userId || DEFAULT_GOAL_USER_ID,
+		appId: goal.appId || DEFAULT_GOAL_APP_ID,
+		title: goal.title.trim(),
+		goalType: goal.goalType || 'general',
+		endDate: goal.endDate,
+		status: goal.status || 'active',
+		metadata: buildGoalMetadata(goal),
+		...frequencyFields,
+	};
+}
+
+function normalizeGoal(goal) {
+	if (!goal || typeof goal != 'object') {
+		return null;
+	}
+
+	const id = goal.id ?? goal._id;
+	const title = goal.title ?? goal.name ?? '';
+	const endDate = goal.endDate ?? goal.deadline ?? '';
+
+	if (!id || !title) {
+		return null;
+	}
+
+	return {
+		id: String(id),
+		userId: String(goal.userId ?? DEFAULT_GOAL_USER_ID),
+		appId: String(goal.appId ?? DEFAULT_GOAL_APP_ID),
+		title: String(title),
+		frequency: formatFrequencyValue(goal),
+		endDate: String(endDate),
+		goalType: String(goal.goalType ?? 'general'),
+		status: String(goal.status ?? 'active'),
+		metadata: goal.metadata ?? {},
+	};
+}
+
+async function parseJsonResponse(response) {
+	const text = await response.text();
+
+	if (!text) {
+		return null;
+	}
+
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
+}
+
+async function requestGoals(path = '', options = {}) {
+	const response = await fetch(`${GOALS_API_ROUTE}${path}`, {
+		cache: 'no-store',
+		...options,
+		headers: {
+			'Content-Type': 'application/json',
+			...(options.headers ?? {}),
+		},
+	});
+
+	const data = await parseJsonResponse(response);
+
+	if (!response.ok) {
+		const message =
+			data?.error ??
+			data?.message ??
+			`Goals request failed with status ${response.status}`;
+		throw new Error(message);
+	}
+
+	return data;
+}
 
 // formats the date for the goals
 export function formatGoalDate(endDate) {
@@ -32,69 +172,45 @@ export function formatGoalDate(endDate) {
 	}).format(date);
 }
 
-// reads goals from the storage
-export function readGoals() {
-	if (typeof window === 'undefined') {
-		return defaultGoals;
+export async function fetchGoals() {
+	const data = await requestGoals();
+	const goals = Array.isArray(data) ? data : data?.goals;
+
+	if (!Array.isArray(goals)) {
+		return [];
 	}
 
-	const rawGoals = window.localStorage.getItem(GOALS_STORAGE_KEY);
-
-	if (!rawGoals) {
-		window.localStorage.setItem(
-			GOALS_STORAGE_KEY,
-			JSON.stringify(defaultGoals),
-		);
-		return defaultGoals;
-	}
-
-	try {
-		const parsedGoals = JSON.parse(rawGoals);
-		return Array.isArray(parsedGoals) ? parsedGoals : defaultGoals;
-	} catch {
-		window.localStorage.setItem(
-			GOALS_STORAGE_KEY,
-			JSON.stringify(defaultGoals),
-		);
-		return defaultGoals;
-	}
+	return goals.map(normalizeGoal).filter(Boolean);
 }
 
-//writes a goal to the local storage
-export function writeGoals(goals) {
-	if (typeof window === 'undefined') {
-		return;
-	}
-
-	window.localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals));
+export async function fetchGoalById(goalId) {
+	const data = await requestGoals(`/${goalId}`);
+	return normalizeGoal(data?.goal ?? data);
 }
 
-// adds or updates a goal
-export function upsertGoal(goal) {
-	const goals = readGoals();
-	const goalIndex = goals.findIndex((item) => item.id === goal.id);
+export async function createGoal(goal) {
+	const data = await requestGoals('', {
+		method: 'POST',
+		body: JSON.stringify(toGoalPayload(goal)),
+	});
 
-	if (goalIndex === -1) {
-		const nextGoals = [...goals, goal];
-		writeGoals(nextGoals);
-		return nextGoals;
-	}
-
-	const nextGoals = goals.map((item) => (item.id === goal.id ? goal : item));
-	writeGoals(nextGoals);
-	return nextGoals;
+	return normalizeGoal(data?.goal ?? data);
 }
 
 // deletes a goal
-export function deleteGoal(goalId) {
-	const nextGoals = readGoals().filter((goal) => goal.id !== goalId);
-	writeGoals(nextGoals);
-	return nextGoals;
+export async function updateGoal(goalId, goal) {
+	const data = await requestGoals(`/${goalId}`, {
+		method: 'PUT',
+		body: JSON.stringify(toGoalPayload({ ...goal, id: goalId })),
+	});
+
+	return normalizeGoal(data?.goal ?? data);
 }
 
-// finds a goal by its id
-export function getGoalById(goalId) {
-	return readGoals().find((goal) => goal.id === goalId) ?? null;
+export async function deleteGoal(goalId) {
+	await requestGoals(`/${goalId}`, {
+		method: 'DELETE',
+	});
 }
 
 // generatea a slug id for the goal created
