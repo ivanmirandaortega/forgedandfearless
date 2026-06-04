@@ -7,21 +7,23 @@ import {
 	AddGoalCard,
 	BottomNav,
 	CheckInHeader,
+	CheckInRow,
 	DeleteGoalModal,
 	GoalCard,
 	MobileScreen,
-	StreakRow,
 } from '@/app/components/ui';
 import {
 	buildGoalId,
 	createGoal,
 	deleteGoal,
-	getGoalById,
 	fetchGoals,
-	upsertGoal,
 	fetchGoalById,
 	updateGoal,
 } from '@/app/lib/goals';
+import {
+	CHECK_INS_UPDATED_EVENT,
+	fetchCheckIns,
+} from '@/app/lib/check-ins';
 import {
 	createNotification,
 	fetchNotifications,
@@ -204,16 +206,19 @@ export function GoalsPageClient() {
 	const [deleteCandidate, setDeleteCandidate] = useState(null);
 	const [errorMessage, setErrorMessage] = useState('');
 	const [notifications, setNotifications] = useState([]);
+	const [checkIns, setCheckIns] = useState([]);
 
 	useEffect(() => {
 		let cancelled = false;
 
 		async function loadGoalsAndNotifications() {
 			try {
-				const [goalsResult, notificationsResult] = await Promise.allSettled([
-					fetchGoals(),
-					fetchNotifications(),
-				]);
+				const [goalsResult, notificationsResult, checkInsResult] =
+					await Promise.allSettled([
+						fetchGoals(),
+						fetchNotifications(),
+						fetchCheckIns(),
+					]);
 
 				if (goalsResult.status !== 'fulfilled') {
 					throw goalsResult.reason;
@@ -232,6 +237,9 @@ export function GoalsPageClient() {
 						.filter((notification) => !dismissedIds.has(notification.id));
 
 					setGoals(goalsResult.value);
+					setCheckIns(
+						checkInsResult.status === 'fulfilled' ? checkInsResult.value : [],
+					);
 					setNotifications(visibleNotifications);
 					setErrorMessage('');
 				}
@@ -271,6 +279,19 @@ export function GoalsPageClient() {
 			window.clearTimeout(timeoutId);
 		};
 	}, [notifications]);
+
+	useEffect(() => {
+		async function handleCheckInsUpdated() {
+			const nextCheckIns = await fetchCheckIns().catch(() => []);
+			setCheckIns(nextCheckIns);
+		}
+
+		window.addEventListener(CHECK_INS_UPDATED_EVENT, handleCheckInsUpdated);
+
+		return () => {
+			window.removeEventListener(CHECK_INS_UPDATED_EVENT, handleCheckInsUpdated);
+		};
+	}, []);
 
 	const dismissNotification = (notificationId) => {
 		const dismissedIds = readDismissedNotificationIds();
@@ -319,8 +340,8 @@ export function GoalsPageClient() {
 				</div>
 			) : null}
 
-			<CheckInHeader />
-			<StreakRow />
+			<CheckInHeader checkIns={checkIns} />
+			<CheckInRow checkIns={checkIns} />
 
 			<section className="goals-content">
 				{errorMessage ? (

@@ -1,20 +1,56 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { formatGoalDate } from '@/app/lib/goals';
+import {
+	createTodayCheckIn,
+	emitCheckInsUpdated,
+	formatCheckInDate,
+} from '@/app/lib/check-ins';
 
-// streak day icon changes bassed on weather the day is upcoming, complete, or missed
-export const streakDays = [
-	{ day: 1, status: 'complete' },
-	{ day: 2, status: 'missed' },
-	{ day: 3, status: 'upcoming' },
-	{ day: 4, status: 'upcoming' },
-	{ day: 5, status: 'upcoming' },
-	{ day: 6, status: 'upcoming' },
-	{ day: 8, status: 'upcoming' },
-	{ day: 7, status: 'upcoming' },
-	{ day: 9, status: 'upcoming' },
-];
+function buildMonthCheckInDays(checkIns) {
+	const today = new Date();
+	const year = today.getFullYear();
+	const month = today.getMonth() + 1;
+	const todayDate = [
+		year,
+		String(month).padStart(2, '0'),
+		String(today.getDate()).padStart(2, '0'),
+	].join('-');
+	const daysInMonth = new Date(year, month, 0).getDate();
+	const completedDates = new Set(
+		checkIns
+			.map((checkIn) => checkIn.date)
+			.filter((date) =>
+				date.startsWith(`${year}-${String(month).padStart(2, '0')}-`),
+			),
+	);
 
-// streak check icon svg
+	return Array.from({ length: daysInMonth }, (_unusedValue, index) => {
+		const day = index + 1;
+		const date = [
+			year,
+			String(month).padStart(2, '0'),
+			String(day).padStart(2, '0'),
+		].join('-');
+
+		if (completedDates.has(date)) {
+			return { day, status: 'complete' };
+		}
+
+		if (date < todayDate) {
+			return { day, status: 'missed' };
+		}
+
+		if (date === todayDate) {
+			return { day, status: 'current' };
+		}
+
+		return { day, status: 'upcoming' };
+	});
+}
+
 function CheckIcon() {
 	return (
 		<svg aria-hidden="true" viewBox="0 0 16 16">
@@ -30,7 +66,6 @@ function CheckIcon() {
 	);
 }
 
-// streak x icon svg
 function XIcon() {
 	return (
 		<svg aria-hidden="true" viewBox="0 0 16 16">
@@ -45,32 +80,25 @@ function XIcon() {
 	);
 }
 
-// day pill container
-function DayPill({ day, status }) {
+function CheckInPill({ day, status }) {
 	return (
-		<div className="day-pill">
-			<span className="day-number">{day}</span>
-			{status === 'complete' && (
-				<span
-					className="day-mark day-mark-complete"
-					aria-label={`Day ${day} complete`}
-				>
+		<div className="checkin-pill">
+			<span className="checkin-pill-day">{day}</span>
+			{status === 'complete' ? (
+				<span className="checkin-pill-mark checkin-pill-mark-complete">
 					<CheckIcon />
 				</span>
-			)}
-			{status === 'missed' && (
-				<span
-					className="day-mark day-mark-missed"
-					aria-label={`Day ${day} missed`}
-				>
+			) : null}
+			{status === 'missed' ? (
+				<span className="checkin-pill-mark checkin-pill-mark-missed">
 					<XIcon />
 				</span>
-			)}
-			{(status === 'current' || status === 'upcoming') && (
+			) : null}
+			{status === 'current' || status === 'upcoming' ? (
 				<span
-					className={`day-dot${status === 'curent' ? 'day-dot-current' : ''}`}
+					className={`checkin-pill-dot${status === 'current' ? ' checkin-pill-dot-current' : ''}`}
 				/>
-			)}
+			) : null}
 		</div>
 	);
 }
@@ -246,6 +274,62 @@ function NavItem({ href, label, active = false, children }) {
 	);
 }
 
+function CheckInNavItem({ active = false }) {
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [statusMessage, setStatusMessage] = useState('');
+
+	useEffect(() => {
+		if (!statusMessage) {
+			return undefined;
+		}
+
+		const timeoutId = window.setTimeout(() => {
+			setStatusMessage('');
+		}, 3000);
+
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [statusMessage]);
+
+	const handleCheckIn = async () => {
+		if (isSubmitting) {
+			return;
+		}
+
+		setIsSubmitting(true);
+
+		try {
+			const result = await createTodayCheckIn();
+			emitCheckInsUpdated();
+			setStatusMessage(
+				result.alreadyCheckedIn ? 'Already checked in today' : 'Checked in',
+			);
+		} catch (error) {
+			setStatusMessage(error.message || 'Unable to check in');
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	return (
+		<div className="bottom-nav-checkin-slot">
+			<button
+				className={`bottom-nav-item ${active ? 'bottom-nav-item-active' : ''}`}
+				type="button"
+				aria-label="Check in"
+				aria-busy={isSubmitting}
+				onClick={handleCheckIn}
+			>
+				<LocationIcon />
+			</button>
+			<span className="bottom-nav-status" aria-live="polite">
+				{statusMessage}
+			</span>
+		</div>
+	);
+}
+
 // mobile container
 export function MobileScreen({ children }) {
 	return (
@@ -256,12 +340,24 @@ export function MobileScreen({ children }) {
 }
 
 // check in header component
-export function CheckInHeader() {
+export function CheckInHeader({ checkIns = [] }) {
+	const today = new Date();
+	const currentDay = today.getDate();
+	const daysInMonth = new Date(
+		today.getFullYear(),
+		today.getMonth() + 1,
+		0,
+	).getDate();
+
 	return (
 		<section className="hero-copy">
 			<p className="eyebrow">Daily Check In</p>
 			<div className="hero-heading-row">
-				<h1>DAY 5/300</h1>
+				<div>
+					<h1>
+						Day {currentDay}/{daysInMonth}
+					</h1>
+				</div>
 				<Link className="help-link" href="/help">
 					Help
 				</Link>
@@ -270,12 +366,13 @@ export function CheckInHeader() {
 	);
 }
 
-// streat days component
-export function StreakRow() {
+export function CheckInRow({ checkIns = [] }) {
+	const monthDays = buildMonthCheckInDays(checkIns);
+
 	return (
-		<section className="streak-row" aria-label="Daily streak">
-			{streakDays.map((item) => (
-				<DayPill key={item.day} day={item.day} status={item.status} />
+		<section className="checkin-row" aria-label="Monthly check-ins">
+			{monthDays.map((item) => (
+				<CheckInPill key={item.day} day={item.day} status={item.status} />
 			))}
 		</section>
 	);
@@ -325,9 +422,7 @@ export function BottomNav({ active = 'home' }) {
 			<NavItem href="/goals" label="Goals" active={active === 'goals'}>
 				<GoalIcon />
 			</NavItem>
-			<NavItem href="#" label="Check In" active={active === 'checkin'}>
-				<LocationIcon />
-			</NavItem>
+			<CheckInNavItem active={active === 'checkin'} />
 			<NavItem href="#" label="Rewards" active={active === 'rewards'}>
 				<RewardIcon />
 			</NavItem>

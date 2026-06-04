@@ -1,16 +1,11 @@
 import Link from 'next/link';
-import {
-	BottomNav,
-	CheckInHeader,
-	MobileScreen,
-	StreakRow,
-} from '@/app/components/ui';
+import { BottomNav, MobileScreen } from '@/app/components/ui';
+import { CheckInOverview } from '@/app/components/check-ins-client';
 
 export default function HomePage() {
 	return (
 		<MobileScreen>
-			<CheckInHeader />
-			<StreakRow />
+			<CheckInOverview />
 
 			<section className="challenge-card">
 				<div className="challenge-content">
