@@ -224,6 +224,42 @@ button {
 	line-height: 1.2;
 }
 
+.rewards-card {
+	margin-top: 40px;
+	min-height: 361px;
+	border-radius: 19px;
+	border: 1px solid var(--black);
+	background: var(--white);
+	color: var(--black);
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	padding: 36px 28px 34px;
+}
+
+.rewards-card h2 {
+	margin: 8px 0 0;
+	font-size: 28px;
+	font-weight: 900;
+	line-height: 1.05;
+	letter-spacing: -0.04em;
+}
+
+.rewards-points {
+	margin: 14px 0 0;
+	font-size: clamp(3.8rem, 18vw, 5.5rem);
+	font-weight: 900;
+	line-height: 0.9;
+	letter-spacing: -0.06em;
+}
+
+.rewards-copy {
+	margin: 16px 0 0;
+	max-width: 260px;
+	font-size: 13px;
+	line-height: 1.35;
+}
+
 .challenge-cta {
 	min-width: 138px;
 	height: 44px;

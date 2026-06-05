@@ -376,7 +376,7 @@ export function BottomNav({
 			>
 				<LocationIcon />
 			</NavItem>
-			<NavItem href="#" label="Rewards" active={active === 'rewards'}>
+			<NavItem href="/rewards" label="Rewards" active={active === 'rewards'}>
 				<RewardIcon />
 			</NavItem>
 			<NavItem href="#" label="Profile" active={active === 'rewards'}>

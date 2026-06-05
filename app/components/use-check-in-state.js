@@ -14,6 +14,7 @@ import {
 	readDismissedNotificationIds,
 	writeDismissedNotificationIds,
 } from '@/app/lib/notifications';
+import { awardCheckInReward, fetchRewardBalance } from '@/app/lib/rewards';
 
 const CHECKIN_NOTIFICATION_TTL_MS = 5000;
 
@@ -51,6 +52,7 @@ export function useCheckInState() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [checkInErrorMessage, setCheckInErrorMessage] = useState('');
 	const [checkInNotifications, setCheckInNotifications] = useState([]);
+	const [rewardBalance, setRewardBalance] = useState(null);
 
 	useEffect(() => {
 		if (!checkInNotifications.length) {
@@ -97,10 +99,14 @@ export function useCheckInState() {
 
 		async function loadCheckIns() {
 			try {
-				const nextCheckIns = await fetchCheckIns();
+				const [nextCheckIns, nextRewardBalance] = await Promise.all([
+					fetchCheckIns(),
+					fetchRewardBalance(),
+				]);
 
 				if (!cancelled) {
 					setCheckIns(nextCheckIns);
+					setRewardBalance(nextRewardBalance);
 					setCheckInErrorMessage('');
 				}
 			} catch (error) {
@@ -154,12 +160,36 @@ export function useCheckInState() {
 					left.date.localeCompare(right.date),
 				),
 			);
-			await publishCheckInNotification('Checked in for today.', 'success');
+			try {
+				const rewardResult = await awardCheckInReward({
+					checkInId: checkIn.id,
+				});
+
+				setRewardBalance(rewardResult.balance);
+				await publishCheckInNotification(
+					'Checked in for today. You earned 10 points.',
+					'success',
+				);
+			} catch (rewardError) {
+				setCheckInErrorMessage(
+					rewardError instanceof Error
+						? rewardError.message
+						: 'Check-in saved, but rewards could not be updated',
+				);
+				await publishCheckInNotification(
+					'Check-in saved, but rewards could not be updated.',
+					'warning',
+				);
+			}
 		} catch (error) {
 			if (error instanceof Error && error.status === 409) {
 				try {
-					const nextCheckIns = await fetchCheckIns();
+					const [nextCheckIns, nextRewardBalance] = await Promise.all([
+						fetchCheckIns(),
+						fetchRewardBalance(),
+					]);
 					setCheckIns(nextCheckIns);
+					setRewardBalance(nextRewardBalance);
 				} catch {
 					// Preserve the duplicate-success state even if the refresh fails.
 				}
@@ -202,6 +232,7 @@ export function useCheckInState() {
 		isLoading,
 		isSubmitting,
 		monthProgress,
+		rewardBalance,
 		streakDays,
 	};
 }
