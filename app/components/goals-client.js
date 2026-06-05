@@ -10,6 +10,7 @@ import {
 	DeleteGoalModal,
 	GoalCard,
 	MobileScreen,
+	NotificationToast,
 	StreakRow,
 } from '@/app/components/ui';
 import {
@@ -25,36 +26,15 @@ import {
 import {
 	createNotification,
 	fetchNotifications,
+	normalizeNotification,
+	readDismissedNotificationIds,
+	writeDismissedNotificationIds,
 } from '@/app/lib/notifications';
+
+import { useCheckInState } from './use-check-in-state';
 
 const NOTIFICATION_TTL_MS = 5000;
 const NOTIFICATION_RECENT_WINDOW_MS = 30000;
-const DISMISSED_NOTIFICATIONS_KEY = 'dismissed-goal-notifications';
-
-function readDismissedNotificationIds() {
-	if (typeof window === 'undefined') {
-		return new Set();
-	}
-
-	try {
-		const stored = window.sessionStorage.getItem(DISMISSED_NOTIFICATIONS_KEY);
-		const parsed = stored ? JSON.parse(stored) : [];
-		return new Set(Array.isArray(parsed) ? parsed : []);
-	} catch {
-		return new Set();
-	}
-}
-
-function writeDismissedNotificationIds(ids) {
-	if (typeof window === 'undefined') {
-		return;
-	}
-
-	window.sessionStorage.setItem(
-		DISMISSED_NOTIFICATIONS_KEY,
-		JSON.stringify(Array.from(ids)),
-	);
-}
 
 function isRecentNotification(notification) {
 	const timestamp = new Date(notification.timestamp ?? '').getTime();
@@ -66,23 +46,6 @@ function isRecentNotification(notification) {
 	return Date.now() - timestamp <= NOTIFICATION_RECENT_WINDOW_MS;
 }
 
-function normalizeNotification(notification) {
-	if (!notification || typeof notification !== 'object') {
-		return null;
-	}
-
-	if (!notification.id || !notification.message || !notification.type) {
-		return null;
-	}
-
-	return {
-		id: String(notification.id),
-		message: String(notification.message),
-		type: String(notification.type),
-		timestamp: notification.timestamp ?? new Date().toISOString(),
-	};
-}
-
 async function publishGoalNotification(message, type = 'success') {
 	try {
 		return normalizeNotification(await createNotification({ message, type }));
@@ -90,28 +53,6 @@ async function publishGoalNotification(message, type = 'success') {
 		console.error('Unable to publish notification', error);
 		return null;
 	}
-}
-
-function NotificationToast({ notification, onDismiss }) {
-	return (
-		<div
-			className={`goal-notification goal-notification-${notification.type}`}
-			role="status"
-			aria-live="polite"
-		>
-			<div className="goal-notification-copy">
-				<p>{notification.message}</p>
-			</div>
-			<button
-				className="goal-notification-close"
-				type="button"
-				aria-label="Dismiss notification"
-				onClick={() => onDismiss(notification.id)}
-			>
-				x
-			</button>
-		</div>
-	);
 }
 
 function GoalForm({
@@ -204,6 +145,17 @@ export function GoalsPageClient() {
 	const [deleteCandidate, setDeleteCandidate] = useState(null);
 	const [errorMessage, setErrorMessage] = useState('');
 	const [notifications, setNotifications] = useState([]);
+	const {
+		checkInDisabled,
+		checkInErrorMessage,
+		checkInNotifications,
+		dismissCheckInNotification,
+		handleCheckIn,
+		isLoading,
+		monthProgress,
+		streakDays,
+	} = useCheckInState();
+	const visibleNotifications = [...checkInNotifications, ...notifications];
 
 	useEffect(() => {
 		let cancelled = false;
@@ -307,24 +259,41 @@ export function GoalsPageClient() {
 
 	return (
 		<MobileScreen>
-			{notifications.length ? (
+			{visibleNotifications.length ? (
 				<div className="goal-notification-stack" aria-label="Notifications">
-					{notifications.map((notifcation) => (
+					{visibleNotifications.map((notifcation) => (
 						<NotificationToast
 							key={notifcation.id}
 							notification={notifcation}
-							onDismiss={dismissNotification}
+							onDismiss={(notificationId) => {
+								if (
+									checkInNotifications.some(
+										(item) => item.id === notificationId,
+									)
+								) {
+									dismissCheckInNotification(notificationId);
+									return;
+								}
+
+								dismissNotification(notificationId);
+							}}
 						/>
 					))}
 				</div>
 			) : null}
 
-			<CheckInHeader />
-			<StreakRow />
+			<CheckInHeader
+				currentDay={monthProgress.currentDay}
+				totalDays={monthProgress.totalDays}
+				isLoading={isLoading}
+			/>
+			<StreakRow days={streakDays} />
 
 			<section className="goals-content">
-				{errorMessage ? (
-					<p className="goal-form-error">{errorMessage}</p>
+				{errorMessage || checkInErrorMessage ? (
+					<p className="goal-form-error">
+						{errorMessage || checkInErrorMessage}
+					</p>
 				) : null}
 				{goals.map((goal) => (
 					<GoalCard
@@ -337,7 +306,11 @@ export function GoalsPageClient() {
 				<AddGoalCard />
 			</section>
 
-			<BottomNav active="goals" />
+			<BottomNav
+				active="goals"
+				onCheckIn={handleCheckIn}
+				checkInDisabled={checkInDisabled}
+			/>
 
 			{deleteCandidate ? (
 				<DeleteGoalModal

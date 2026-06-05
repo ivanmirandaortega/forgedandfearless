@@ -134,8 +134,15 @@ button {
 .streak-row {
 	margin-top: 27px;
 	display: flex;
-	justify-content: space-between;
+	justify-content: flex-start;
 	gap: 4px;
+	overflow-x: auto;
+	padding-bottom: 6px;
+	scrollbar-width: none;
+}
+
+.streak-row::-webkit-scrollbar {
+	display: none;
 }
 
 .day-pill {
@@ -242,6 +249,25 @@ button {
 	cursor: pointer;
 }
 
+.checkin-button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.checkin-feedback {
+	margin: 16px 0 0;
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.checkin-feedback-success {
+	color: #0c7a28;
+}
+
+.checkin-feedback-error {
+	color: #b00020;
+}
+
 .bottom-nav {
 	margin-top: auto;
 	height: 63px;
@@ -260,6 +286,11 @@ button {
 	align-items: center;
 	justify-content: center;
 	cursor: pointer;
+}
+
+.bottom-nav-item:disabled {
+	opacity: 0.6;
+	cursor: default;
 }
 
 .bottom-nav-item svg {

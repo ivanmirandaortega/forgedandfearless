@@ -1,19 +1,6 @@
 import Link from 'next/link';
 import { formatGoalDate } from '@/app/lib/goals';
 
-// streak day icon changes bassed on weather the day is upcoming, complete, or missed
-export const streakDays = [
-	{ day: 1, status: 'complete' },
-	{ day: 2, status: 'missed' },
-	{ day: 3, status: 'upcoming' },
-	{ day: 4, status: 'upcoming' },
-	{ day: 5, status: 'upcoming' },
-	{ day: 6, status: 'upcoming' },
-	{ day: 8, status: 'upcoming' },
-	{ day: 7, status: 'upcoming' },
-	{ day: 9, status: 'upcoming' },
-];
-
 // streak check icon svg
 function CheckIcon() {
 	return (
@@ -127,6 +114,28 @@ function PlusIcon() {
 	);
 }
 
+export function NotificationToast({ notification, onDismiss }) {
+	return (
+		<div
+			className={`goal-notification goal-notification-${notification.type}`}
+			role="status"
+			aria-live="polite"
+		>
+			<div className="goal-notification-copy">
+				<p>{notification.message}</p>
+			</div>
+			<button
+				className="goal-notification-close"
+				type="button"
+				aria-label="Dismiss notification"
+				onClick={() => onDismiss(notification.id)}
+			>
+				×
+			</button>
+		</div>
+	);
+}
+
 // bottom nav home icon
 function HomeIcon() {
 	return (
@@ -234,7 +243,28 @@ function UserIcon() {
 }
 
 // Nav link component
-function NavItem({ href, label, active = false, children }) {
+function NavItem({
+	href,
+	label,
+	active = false,
+	children,
+	onClick,
+	disabled = false,
+}) {
+	if (onClick) {
+		return (
+			<button
+				className={`bottom-nav-item${active ? ' bottom-nav-item-active' : ''}`}
+				type="button"
+				aria-label={label}
+				onClick={onClick}
+				disabled={disabled}
+			>
+				{children}
+			</button>
+		);
+	}
+
 	return (
 		<Link
 			className={`bottom-nav-item ${active ? 'bottom-nav-item-active' : ''}`}
@@ -256,12 +286,16 @@ export function MobileScreen({ children }) {
 }
 
 // check in header component
-export function CheckInHeader() {
+export function CheckInHeader({
+	currentDay = 0,
+	totalDays = 0,
+	isLoading = false,
+}) {
 	return (
 		<section className="hero-copy">
 			<p className="eyebrow">Daily Check In</p>
 			<div className="hero-heading-row">
-				<h1>DAY 5/300</h1>
+				<h1>{`DAY ${isLoading ? '--' : currentDay}/${isLoading ? '--' : totalDays}`}</h1>
 				<Link className="help-link" href="/help">
 					Help
 				</Link>
@@ -271,11 +305,15 @@ export function CheckInHeader() {
 }
 
 // streat days component
-export function StreakRow() {
+export function StreakRow({ days = [] }) {
 	return (
 		<section className="streak-row" aria-label="Daily streak">
-			{streakDays.map((item) => (
-				<DayPill key={item.day} day={item.day} status={item.status} />
+			{days.map((item) => (
+				<DayPill
+					key={item.date ?? item.day}
+					day={item.day}
+					status={item.status}
+				/>
 			))}
 		</section>
 	);
@@ -316,7 +354,11 @@ export function GoalCard({ goal, onEdit, onDelete }) {
 }
 
 // bottom nav component
-export function BottomNav({ active = 'home' }) {
+export function BottomNav({
+	active = 'home',
+	onCheckIn,
+	checkInDisabled = false,
+}) {
 	return (
 		<nav className="bottom-nav" aria-label="Primary">
 			<NavItem href="/" label="Home" active={active === 'home'}>
@@ -325,7 +367,13 @@ export function BottomNav({ active = 'home' }) {
 			<NavItem href="/goals" label="Goals" active={active === 'goals'}>
 				<GoalIcon />
 			</NavItem>
-			<NavItem href="#" label="Check In" active={active === 'checkin'}>
+			<NavItem
+				href="#"
+				label="Check In"
+				active={active === 'checkin'}
+				onClick={onCheckIn}
+				disabled={checkInDisabled}
+			>
 				<LocationIcon />
 			</NavItem>
 			<NavItem href="#" label="Rewards" active={active === 'rewards'}>

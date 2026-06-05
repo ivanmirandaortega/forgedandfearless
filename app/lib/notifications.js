@@ -1,4 +1,5 @@
 const NOTIFICATIONS_API_ROUTE = '/api/notifications';
+const DISMISSED_NOTIFICATIONS_KEY = 'dismissed-goal-notifications';
 
 async function parseJsonResponse(response) {
 	const text = await response.text();
@@ -35,6 +36,48 @@ async function requestNotifications(options = {}) {
 	}
 
 	return data;
+}
+
+export function readDismissedNotificationIds() {
+	if (typeof window === 'undefined') {
+		return new Set();
+	}
+
+	try {
+		const stored = window.sessionStorage.getItem(DISMISSED_NOTIFICATIONS_KEY);
+		const parsed = stored ? JSON.parse(stored) : [];
+		return new Set(Array.isArray(parsed) ? parsed : []);
+	} catch {
+		return new Set();
+	}
+}
+
+export function writeDismissedNotificationIds(ids) {
+	if (typeof window === 'undefined') {
+		return;
+	}
+
+	window.sessionStorage.setItem(
+		DISMISSED_NOTIFICATIONS_KEY,
+		JSON.stringify(Array.from(ids)),
+	);
+}
+
+export function normalizeNotification(notification) {
+	if (!notification || typeof notification !== 'object') {
+		return null;
+	}
+
+	if (!notification.id || !notification.message || !notification.type) {
+		return null;
+	}
+
+	return {
+		id: String(notification.id),
+		message: String(notification.message),
+		type: String(notification.type),
+		timestamp: notification.timestamp ?? new Date().toISOString(),
+	};
 }
 
 export async function fetchNotifications() {
